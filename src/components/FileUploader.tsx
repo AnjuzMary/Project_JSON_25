@@ -34,13 +34,21 @@ function autoConvertToTranslationFormat(obj: any, lang = "en"): Record<string, R
   return wrapped
 }
 
-function looksLikeTranslationFile(data: any): boolean {
+function looksLikeFlatTranslationFile(data: any): boolean {
   return typeof data === "object" &&
-    Object.values(data).every(
-      (val) => typeof val === "string" || (typeof val === "object" && val !== null && !Array.isArray(val))
-    )
+    Object.values(data).every((val) => typeof val === "string")
 }
 
+function looksLikeStructuredTranslationFile(data: any): boolean {
+  return typeof data === "object" &&
+    Object.values(data).every(
+      (val) =>
+        typeof val === "object" &&
+        val !== null &&
+        !Array.isArray(val) &&
+        Object.values(val).every((v) => typeof v === "string")
+    )
+}
 
 export function FileUploader({ onFileUpload }: FileUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -56,10 +64,17 @@ export function FileUploader({ onFileUpload }: FileUploaderProps) {
         let data = JSON.parse(content)
 
         if (data.properties || data.$schema || data.type === "object") {
-          // It's a JSON schema file
+          // JSON schema file
           onFileUpload(data, "schema")
-        } else if (looksLikeTranslationFile(data)) {
-          // It's a raw translation file; convert to correct format
+        } else if (looksLikeStructuredTranslationFile(data)) {
+          // Already in the correct format
+          onFileUpload(data, "translation")
+        } else if (looksLikeFlatTranslationFile(data)) {
+          // Convert flat key-value to { key: { lang: value } }
+          const converted = autoConvertToTranslationFormat(data, "en")
+          onFileUpload(converted, "translation")
+        } else if (typeof data === "object") {
+          // Fallback: try flattening & wrapping nested object
           const converted = autoConvertToTranslationFormat(data, "en")
           onFileUpload(converted, "translation")
         } else {
