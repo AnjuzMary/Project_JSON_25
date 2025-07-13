@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 import {
   Box,
   Container,
@@ -20,13 +20,15 @@ import {
   ThemeProvider,
   createTheme,
   CssBaseline,
-} from "@mui/material"
-import { Download, Add, Delete, Warning, CheckCircle, Language, Key } from "@mui/icons-material"
-import { TranslationEditor } from "./components/TranslationEditor"
-import { FileUploader } from "./components/FileUploader"
-import { ConflictResolver } from "./components/ConflictResolver"
-import { PlaceholderValidator } from "./components/PlaceholderValidator"
-import './App.css'
+  Snackbar,
+} from "@mui/material";
+import { Download, Add, Delete, Warning, CheckCircle, Language, Key } from "@mui/icons-material";
+import { TranslationEditor } from "./components/TranslationEditor";
+import { FileUploader } from "./components/FileUploader";
+import { ConflictResolver } from "./components/ConflictResolver";
+import { PlaceholderValidator } from "./components/PlaceholderValidator";
+import { StorageIndicator } from "./components/StorageIndicator";
+import "./App.css";
 
 const theme = createTheme({
   palette: {
@@ -37,342 +39,386 @@ const theme = createTheme({
       main: "#dc004e",
     },
   },
-})
+});
 
 interface TranslationData {
   [key: string]: {
-    [language: string]: string
-  }
+    [language: string]: string;
+  };
 }
 
 interface SchemaProperty {
-  type: string
-  properties?: { [key: string]: SchemaProperty }
-  title?: string
-  description?: string
-  items?: SchemaProperty
-  oneOf?: SchemaProperty[]
-  anyOf?: SchemaProperty[]
-  allOf?: SchemaProperty[]
+  type: string;
+  properties?: { [key: string]: SchemaProperty };
+  title?: string;
+  description?: string;
+  items?: SchemaProperty;
+  oneOf?: SchemaProperty[];
+  anyOf?: SchemaProperty[];
+  allOf?: SchemaProperty[];
 }
 
 interface JsonSchema {
-  properties?: { [key: string]: SchemaProperty }
-  title?: string
-  description?: string
+  properties?: { [key: string]: SchemaProperty };
+  title?: string;
+  description?: string;
 }
 
 function App() {
-  const [translations, setTranslations] = useState<TranslationData>({})
-  const [languages, setLanguages] = useState<string[]>(["en"])
-  const [selectedKey, setSelectedKey] = useState<string>("")
-  const [showAddKeyDialog, setShowAddKeyDialog] = useState(false)
-  const [showAddLanguageDialog, setShowAddLanguageDialog] = useState(false)
-  const [newKey, setNewKey] = useState("")
-  const [newLanguage, setNewLanguage] = useState("")
-  const [conflicts, setConflicts] = useState<any>(null)
-  const [placeholderIssues, setPlaceholderIssues] = useState<any>({})
+  const [translations, setTranslations] = useState<TranslationData>({});
+  
+  const [languages, setLanguages] = useState<string[]>(["en","de"]);
+  const [selectedKey, setSelectedKey] = useState<string>("");
+  const [showAddKeyDialog, setShowAddKeyDialog] = useState(false);
+  const [showAddLanguageDialog, setShowAddLanguageDialog] = useState(false);
+  const [newKey, setNewKey] = useState("");
+  const [newLanguage, setNewLanguage] = useState("");
+  const [conflicts, setConflicts] = useState<any>(null);
+  const [placeholderIssues, setPlaceholderIssues] = useState<any>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
 
   // Load data from localStorage on mount
-  useEffect(() => {
-    const savedData = localStorage.getItem("i18n-translations")
-    const savedLanguages = localStorage.getItem("i18n-languages")
-
-    if (savedData) {
+ useEffect(() => {
+    const loadData = () => {
       try {
-        setTranslations(JSON.parse(savedData))
-      } catch (e) {
-        console.error("Failed to load saved translations:", e)
-      }
-    }
+        const savedData = localStorage.getItem("i18n-translations");
+        const savedLanguages = localStorage.getItem("i18n-languages");
 
-    if (savedLanguages) {
-      try {
-        setLanguages(JSON.parse(savedLanguages))
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          if (Object.keys(parsedData).length > 0) {
+            setTranslations(parsedData);
+          }
+        }
+
+        if (savedLanguages) {
+          const parsedLanguages = JSON.parse(savedLanguages);
+          if (parsedLanguages.length > 0) {
+            setLanguages(parsedLanguages);
+          }
+        }
       } catch (e) {
-        console.error("Failed to load saved languages:", e)
+        console.error("Failed to load saved data:", e);
       }
-    }
-  }, [])
+    };
+
+    loadData();
+  }, []);
 
   // Save to localStorage whenever data changes
   useEffect(() => {
-    localStorage.setItem("i18n-translations", JSON.stringify(translations))
-  }, [translations])
+    if (Object.keys(translations).length > 0) {
+      try {
+        localStorage.setItem("i18n-translations", JSON.stringify(translations));
+        window.dispatchEvent(new Event("storage"));
+      } catch (e) {
+        console.error("Failed to save translations:", e);
+      }
+    }
+  }, [translations]);
 
+  // Save languages to localStorage - UPDATED VERSION
   useEffect(() => {
-    localStorage.setItem("i18n-languages", JSON.stringify(languages))
-  }, [languages])
+    if (languages.length > 0) {
+      try {
+        localStorage.setItem("i18n-languages", JSON.stringify(languages));
+        window.dispatchEvent(new Event("storage"));
+      } catch (e) {
+        console.error("Failed to save languages:", e);
+      }
+    }
+  }, [languages]);
+
+  // Updated clearStorage function
+  const clearStorage = () => {
+    if (window.confirm("Are you sure you want to clear all translation data?")) {
+      try {
+        localStorage.removeItem("i18n-translations");
+        localStorage.removeItem("i18n-languages");
+        setTranslations({});
+        setLanguages(["en"]); // Reset to default with at least one language
+        setSelectedKey("");
+        setSnackbarOpen(true);
+      } catch (e) {
+        console.error("Failed to clear storage:", e);
+      }
+    }
+  };
 
   // Validate placeholders whenever translations change
   useEffect(() => {
-    const issues: any = {}
+    const issues: any = {};
     Object.keys(translations).forEach((key) => {
-      const keyTranslations = translations[key]
-      const placeholders = extractPlaceholders(Object.values(keyTranslations))
+      const keyTranslations = translations[key];
+      const placeholders = extractPlaceholders(Object.values(keyTranslations));
 
       if (placeholders.length > 0) {
-        const inconsistencies = findPlaceholderInconsistencies(keyTranslations, placeholders)
+        const inconsistencies = findPlaceholderInconsistencies(keyTranslations, placeholders);
         if (inconsistencies.length > 0) {
-          issues[key] = inconsistencies
+          issues[key] = inconsistencies;
         }
       }
-    })
-    setPlaceholderIssues(issues)
-  }, [translations])
+    });
+    setPlaceholderIssues(issues);
+  }, [translations]);
 
   const extractPlaceholders = (texts: string[]): string[] => {
-    const placeholders = new Set<string>()
+    const placeholders = new Set<string>();
     texts.forEach((text) => {
-      const matches = text.match(/\$\{([^}]+)\}/g)
+      const matches = text.match(/\$\{([^}]+)\}/g);
       if (matches) {
-        matches.forEach((match) => placeholders.add(match))
+        matches.forEach((match) => placeholders.add(match));
       }
-    })
-    return Array.from(placeholders)
-  }
+    });
+    return Array.from(placeholders);
+  };
 
   const findPlaceholderInconsistencies = (
     keyTranslations: { [lang: string]: string },
     expectedPlaceholders: string[],
   ) => {
-    const inconsistencies: string[] = []
+    const inconsistencies: string[] = [];
 
     Object.entries(keyTranslations).forEach(([lang, text]) => {
-      const textPlaceholders = extractPlaceholders([text])
-      const missing = expectedPlaceholders.filter((p) => !textPlaceholders.includes(p))
-      const extra = textPlaceholders.filter((p) => !expectedPlaceholders.includes(p))
+      const textPlaceholders = extractPlaceholders([text]);
+      const missing = expectedPlaceholders.filter((p) => !textPlaceholders.includes(p));
+      const extra = textPlaceholders.filter((p) => !expectedPlaceholders.includes(p));
 
       if (missing.length > 0 || extra.length > 0) {
-        inconsistencies.push(`${lang}: missing ${missing.join(", ")}, extra ${extra.join(", ")}`)
+        inconsistencies.push(`${lang}: missing ${missing.join(", ")}, extra ${extra.join(", ")}`);
       }
-    })
+    });
 
-    return inconsistencies
-  }
+    return inconsistencies;
+  };
 
   const handleFileUpload = (data: any, type: "translation" | "schema") => {
     if (type === "translation") {
-      // Check for conflicts
-      const existingKeys = Object.keys(translations)
-      const newKeys = Object.keys(data)
-      const conflictingKeys = existingKeys.filter((key) => newKeys.includes(key))
+      const existingKeys = Object.keys(translations);
+      const newKeys = Object.keys(data);
+      const conflictingKeys = existingKeys.filter((key) => newKeys.includes(key));
 
       if (conflictingKeys.length > 0) {
         setConflicts({
           existing: translations,
           incoming: data,
           conflictingKeys,
-        })
+        });
       } else {
-        mergeTranslations(data)
+        mergeTranslations(data);
       }
     } else if (type === "schema") {
-      const keys = extractKeysFromSchema(data)
-      const newTranslations = { ...translations }
+      const keys = extractKeysFromSchema(data);
+      const newTranslations = { ...translations };
 
       keys.forEach((key) => {
         if (!newTranslations[key]) {
-          newTranslations[key] = {}
+          newTranslations[key] = {};
           languages.forEach((lang) => {
-            newTranslations[key][lang] = ""
-          })
+            newTranslations[key][lang] = "";
+          });
         }
-      })
+      });
 
-      setTranslations(newTranslations)
+      setTranslations(newTranslations);
     }
-  }
+  };
 
   const extractKeysFromSchema = (schema: JsonSchema): string[] => {
-    const keys: string[] = []
+    const keys: string[] = [];
 
     const traverse = (obj: any, path = "") => {
       if (obj.properties) {
         Object.keys(obj.properties).forEach((key) => {
-          const fullPath = path ? `${path}.properties.${key}` : `properties.${key}`
-          const property = obj.properties[key]
+          const fullPath = path ? `${path}.properties.${key}` : `properties.${key}`;
+          const property = obj.properties[key];
 
-          // Add title and description paths for JSONForms i18n
           if (property.title !== undefined) {
-            keys.push(`${fullPath}.title`)
+            keys.push(`${fullPath}.title`);
           }
           if (property.description !== undefined) {
-            keys.push(`${fullPath}.description`)
+            keys.push(`${fullPath}.description`);
           }
 
-          // Handle nested objects
           if (property.properties) {
-            traverse(property, fullPath)
+            traverse(property, fullPath);
           }
 
-          // Handle arrays with items
           if (property.type === "array" && property.items) {
             if (property.items.title !== undefined) {
-              keys.push(`${fullPath}.items.title`)
+              keys.push(`${fullPath}.items.title`);
             }
             if (property.items.description !== undefined) {
-              keys.push(`${fullPath}.items.description`)
+              keys.push(`${fullPath}.items.description`);
             }
             if (property.items.properties) {
-              traverse(property.items, `${fullPath}.items`)
+              traverse(property.items, `${fullPath}.items`);
             }
           }
 
-          // Handle oneOf, anyOf, allOf schemas
-          ;["oneOf", "anyOf", "allOf"].forEach((schemaType) => {
-            if (property[schemaType as keyof SchemaProperty] && Array.isArray(property[schemaType as keyof SchemaProperty])) {
-              (property[schemaType as keyof SchemaProperty] as SchemaProperty[]).forEach((subSchema: any, index: number) => {
-                if (subSchema.title !== undefined) {
-                  keys.push(`${fullPath}.${schemaType}.${index}.title`)
-                }
-                if (subSchema.description !== undefined) {
-                  keys.push(`${fullPath}.${schemaType}.${index}.description`)
-                }
-              })
+          ["oneOf", "anyOf", "allOf"].forEach((schemaType) => {
+            if (
+              property[schemaType as keyof SchemaProperty] &&
+              Array.isArray(property[schemaType as keyof SchemaProperty])
+            ) {
+              (property[schemaType as keyof SchemaProperty] as SchemaProperty[]).forEach(
+                (subSchema: any, index: number) => {
+                  if (subSchema.title !== undefined) {
+                    keys.push(`${fullPath}.${schemaType}.${index}.title`);
+                  }
+                  if (subSchema.description !== undefined) {
+                    keys.push(`${fullPath}.${schemaType}.${index}.description`);
+                  }
+                },
+              );
             }
-          })
-        })
+          });
+        });
       }
 
-      // Handle root-level title and description
       if (path === "" && obj.title !== undefined) {
-        keys.push("title")
+        keys.push("title");
       }
       if (path === "" && obj.description !== undefined) {
-        keys.push("description")
+        keys.push("description");
       }
-    }
+    };
 
-    traverse(schema)
-    return keys
-  }
+    traverse(schema);
+    return keys;
+  };
 
   const mergeTranslations = (newData: TranslationData) => {
-    const merged = { ...translations }
-    const newLanguages = new Set(languages)
+    const merged = { ...translations };
+    const newLanguages = new Set(languages);
 
     Object.keys(newData).forEach((key) => {
       if (!merged[key]) {
-        merged[key] = {}
+        merged[key] = {};
       }
 
       Object.keys(newData[key]).forEach((lang) => {
-        merged[key][lang] = newData[key][lang]
-        newLanguages.add(lang)
-      })
-    })
+        merged[key][lang] = newData[key][lang];
+        newLanguages.add(lang);
+      });
+    });
 
-    setTranslations(merged)
-    setLanguages(Array.from(newLanguages))
-  }
+    setTranslations(merged);
+    setLanguages(Array.from(newLanguages));
+  };
 
   const handleConflictResolution = (resolution: "keep" | "replace" | "merge", conflictingKeys: string[]) => {
-    if (!conflicts) return
+    if (!conflicts) return;
 
-    const merged = { ...translations }
+    const merged = { ...translations };
 
     conflictingKeys.forEach((key) => {
       if (resolution === "replace") {
-        merged[key] = conflicts.incoming[key]
+        merged[key] = conflicts.incoming[key];
       } else if (resolution === "merge") {
-        merged[key] = { ...merged[key], ...conflicts.incoming[key] }
+        merged[key] = { ...merged[key], ...conflicts.incoming[key] };
       }
-      // 'keep' does nothing
-    })
+    });
 
-    // Add non-conflicting keys
     Object.keys(conflicts.incoming).forEach((key) => {
       if (!conflictingKeys.includes(key)) {
-        merged[key] = conflicts.incoming[key]
+        merged[key] = conflicts.incoming[key];
       }
-    })
+    });
 
-    setTranslations(merged)
-    setConflicts(null)
-  }
+    setTranslations(merged);
+    setConflicts(null);
+  };
 
   const addKey = () => {
     if (newKey && !translations[newKey]) {
-      const newTranslations = { ...translations }
-      newTranslations[newKey] = {}
+      const newTranslations = { ...translations };
+      newTranslations[newKey] = {};
       languages.forEach((lang) => {
-        newTranslations[newKey][lang] = ""
-      })
-      setTranslations(newTranslations)
-      setNewKey("")
-      setShowAddKeyDialog(false)
+        newTranslations[newKey][lang] = "";
+      });
+      setTranslations(newTranslations);
+      setNewKey("");
+      setShowAddKeyDialog(false);
     }
-  }
+  };
 
   const deleteKey = (key: string) => {
-    const newTranslations = { ...translations }
-    delete newTranslations[key]
-    setTranslations(newTranslations)
+    const newTranslations = { ...translations };
+    delete newTranslations[key];
+    setTranslations(newTranslations);
     if (selectedKey === key) {
-      setSelectedKey("")
+      setSelectedKey("");
     }
-  }
+  };
 
   const addLanguage = () => {
     if (newLanguage && !languages.includes(newLanguage)) {
-      const newLanguages = [...languages, newLanguage]
-      const newTranslations = { ...translations }
+      const newLanguages = [...languages, newLanguage];
+      const newTranslations = { ...translations };
 
       Object.keys(newTranslations).forEach((key) => {
-        newTranslations[key][newLanguage] = ""
-      })
+        newTranslations[key][newLanguage] = "";
+      });
 
-      setLanguages(newLanguages)
-      setTranslations(newTranslations)
-      setNewLanguage("")
-      setShowAddLanguageDialog(false)
+      setLanguages(newLanguages);
+      setTranslations(newTranslations);
+      setNewLanguage("");
+      setShowAddLanguageDialog(false);
     }
-  }
+  };
 
   const deleteLanguage = (language: string) => {
-    if (languages.length <= 1) return // Keep at least one language
+    if (languages.length <= 1) return;
 
-    const newLanguages = languages.filter((lang) => lang !== language)
-    const newTranslations = { ...translations }
+    const newLanguages = languages.filter((lang) => lang !== language);
+    const newTranslations = { ...translations };
 
     Object.keys(newTranslations).forEach((key) => {
-      delete newTranslations[key][language]
-    })
+      delete newTranslations[key][language];
+    });
 
-    setLanguages(newLanguages)
-    setTranslations(newTranslations)
-  }
+    setLanguages(newLanguages);
+    setTranslations(newTranslations);
+  };
 
   const updateTranslation = (key: string, language: string, value: string) => {
-    const newTranslations = { ...translations }
+    const newTranslations = { ...translations };
     if (!newTranslations[key]) {
-      newTranslations[key] = {}
+      newTranslations[key] = {};
     }
-    newTranslations[key][language] = value
-    setTranslations(newTranslations)
-  }
+    newTranslations[key][language] = value;
+    setTranslations(newTranslations);
+  };
 
   const downloadTranslations = () => {
-    const dataStr = JSON.stringify(translations, null, 2)
-    const dataBlob = new Blob([dataStr], { type: "application/json" })
-    const url = URL.createObjectURL(dataBlob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = "i18n.data.json"
-    link.click()
-    URL.revokeObjectURL(url)
-  }
+    const dataStr = JSON.stringify(translations, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "i18n.data.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   const getKeyCompletionStatus = (key: string) => {
-    const keyTranslations = translations[key]
-    const completed = languages.filter((lang) => keyTranslations[lang] && keyTranslations[lang].trim() !== "")
+    const keyTranslations = translations[key];
+    const completed = languages.filter((lang) => keyTranslations[lang] && keyTranslations[lang].trim() !== "");
     return {
       completed: completed.length,
       total: languages.length,
       isComplete: completed.length === languages.length,
+    };
+  };
+
+  const handleSnackbarClose = (event: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === "clickaway") {
+      return;
     }
-  }
+    setSnackbarOpen(false);
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -385,11 +431,13 @@ function App() {
               <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                 JSON i18n Translator
               </Typography>
+              <StorageIndicator onClearStorage={clearStorage} />
               <Button
                 color="inherit"
                 startIcon={<Download />}
                 onClick={downloadTranslations}
                 disabled={Object.keys(translations).length === 0}
+                sx={{ ml: 2 }}
               >
                 Download
               </Button>
@@ -398,7 +446,6 @@ function App() {
 
           <Container maxWidth="xl">
             <Grid container spacing={3}>
-              {/* File Upload Section */}
               <Grid item xs={12}>
                 <Paper sx={{ p: 2 }}>
                   <Typography variant="h6" gutterBottom>
@@ -408,8 +455,7 @@ function App() {
                 </Paper>
               </Grid>
 
-              {/* Languages Management */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -433,8 +479,7 @@ function App() {
                 </Paper>
               </Grid>
 
-              {/* Keys Management */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={8}>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -444,10 +489,10 @@ function App() {
                       Add Key
                     </Button>
                   </Box>
-                  <Box sx={{ maxHeight: 200, overflow: "auto" }}>
+                  <Box sx={{ maxHeight: 250, overflow: "auto" }}>
                     {Object.keys(translations).map((key) => {
-                      const status = getKeyCompletionStatus(key)
-                      const hasPlaceholderIssues = placeholderIssues[key]
+                      const status = getKeyCompletionStatus(key);
+                      const hasPlaceholderIssues = placeholderIssues[key];
 
                       return (
                         <Box
@@ -481,20 +526,19 @@ function App() {
                           <IconButton
                             size="small"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              deleteKey(key)
+                              e.stopPropagation();
+                              deleteKey(key);
                             }}
                           >
                             <Delete fontSize="small" />
                           </IconButton>
                         </Box>
-                      )
+                      );
                     })}
                   </Box>
                 </Paper>
               </Grid>
 
-              {/* Translation Editor */}
               {selectedKey && (
                 <Grid item xs={12}>
                   <Paper sx={{ p: 2 }}>
@@ -521,13 +565,11 @@ function App() {
                 </Grid>
               )}
 
-              {/* Placeholder Validator */}
               <Grid item xs={12}>
                 <PlaceholderValidator translations={translations} placeholderIssues={placeholderIssues} />
               </Grid>
             </Grid>
 
-            {/* Add Key Dialog */}
             <Dialog open={showAddKeyDialog} onClose={() => setShowAddKeyDialog(false)}>
               <DialogTitle>Add New Translation Key</DialogTitle>
               <DialogContent>
@@ -550,7 +592,6 @@ function App() {
               </DialogActions>
             </Dialog>
 
-            {/* Add Language Dialog */}
             <Dialog open={showAddLanguageDialog} onClose={() => setShowAddLanguageDialog(false)}>
               <DialogTitle>Add New Language</DialogTitle>
               <DialogContent>
@@ -573,7 +614,6 @@ function App() {
               </DialogActions>
             </Dialog>
 
-            {/* Conflict Resolution Dialog */}
             {conflicts && (
               <ConflictResolver
                 conflicts={conflicts}
@@ -583,9 +623,15 @@ function App() {
             )}
           </Container>
         </Box>
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={handleSnackbarClose}
+          message="Translations saved!"
+        />
       </div>
     </ThemeProvider>
-  )
+  );
 }
 
-export default App
+export default App;
