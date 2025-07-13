@@ -26,6 +26,7 @@ import { TranslationEditor } from "./components/TranslationEditor"
 import { FileUploader } from "./components/FileUploader"
 import { ConflictResolver } from "./components/ConflictResolver"
 import { PlaceholderValidator } from "./components/PlaceholderValidator"
+import { StorageIndicator } from "./components/StorageIndicator";
 import './App.css'
 
 const theme = createTheme({
@@ -72,37 +73,46 @@ function App() {
   const [newLanguage, setNewLanguage] = useState("")
   const [conflicts, setConflicts] = useState<any>(null)
   const [placeholderIssues, setPlaceholderIssues] = useState<any>({})
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+
 
   // Load data from localStorage on mount
   useEffect(() => {
-    const savedData = localStorage.getItem("i18n-translations")
-    const savedLanguages = localStorage.getItem("i18n-languages")
+    const savedData = localStorage.getItem("i18n-translations");
+    const savedLanguages = localStorage.getItem("i18n-languages");
 
     if (savedData) {
       try {
-        setTranslations(JSON.parse(savedData))
+        setTranslations(JSON.parse(savedData));
       } catch (e) {
-        console.error("Failed to load saved translations:", e)
+        console.error("Failed to load saved translations:", e);
       }
     }
 
     if (savedLanguages) {
       try {
-        setLanguages(JSON.parse(savedLanguages))
+        setLanguages(JSON.parse(savedLanguages));
       } catch (e) {
-        console.error("Failed to load saved languages:", e)
+        console.error("Failed to load saved languages:", e);
       }
     }
-  }, [])
+
+    setHasLoadedFromStorage(true); // ✅ mark storage as loaded
+  }, []);
 
   // Save to localStorage whenever data changes
   useEffect(() => {
-    localStorage.setItem("i18n-translations", JSON.stringify(translations))
-  }, [translations])
+    if (hasLoadedFromStorage) {
+      localStorage.setItem("i18n-translations", JSON.stringify(translations));
+    }
+  }, [translations, hasLoadedFromStorage]);
 
   useEffect(() => {
-    localStorage.setItem("i18n-languages", JSON.stringify(languages))
-  }, [languages])
+    if (hasLoadedFromStorage) {
+      localStorage.setItem("i18n-languages", JSON.stringify(languages));
+    }
+  }, [languages, hasLoadedFromStorage]);
+
 
   // Validate placeholders whenever translations change
   useEffect(() => {
@@ -321,6 +331,16 @@ function App() {
     setTranslations(newTranslations)
   }
 
+  const clearStorage = () => {
+    if (window.confirm("Are you sure you want to clear all translation data?")) {
+      localStorage.removeItem("i18n-translations")
+      localStorage.removeItem("i18n-languages")
+      setTranslations({})
+      setLanguages(["en"])
+      setSelectedKey("")
+    }
+  }
+
   const updateTranslation = (key: string, language: string, value: string) => {
     const newTranslations = { ...translations }
     if (!newTranslations[key]) {
@@ -364,16 +384,21 @@ function App() {
               <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                 JSON i18n Translator
               </Typography>
+
+              <StorageIndicator onClearStorage={clearStorage} />
+
               <Button
                 color="inherit"
                 startIcon={<Download />}
                 onClick={downloadTranslations}
                 disabled={Object.keys(translations).length === 0}
+                sx={{ ml: 2 }}
               >
                 Download
               </Button>
             </Toolbar>
           </AppBar>
+
 
           <Container maxWidth="xl">
             <Grid container spacing={3}>
