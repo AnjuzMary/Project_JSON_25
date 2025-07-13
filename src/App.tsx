@@ -184,69 +184,46 @@ function App() {
     }
   }
 
-  const extractKeysFromSchema = (schema: JsonSchema): string[] => {
-    const keys: string[] = []
+ const extractKeysFromSchema = (schema: JsonSchema): string[] => {
+  const keys: string[] = []
 
-    const traverse = (obj: any, path = "") => {
-      if (obj.properties) {
-        Object.keys(obj.properties).forEach((key) => {
-          const fullPath = path ? `${path}.properties.${key}` : `properties.${key}`
-          const property = obj.properties[key]
+  const traverse = (obj: any, path = "") => {
+    const currentPath = path
 
-          // Add title and description paths for JSONForms i18n
-          if (property.title !== undefined) {
-            keys.push(`${fullPath}.title`)
-          }
-          if (property.description !== undefined) {
-            keys.push(`${fullPath}.description`)
-          }
-
-          // Handle nested objects
-          if (property.properties) {
-            traverse(property, fullPath)
-          }
-
-          // Handle arrays with items
-          if (property.type === "array" && property.items) {
-            if (property.items.title !== undefined) {
-              keys.push(`${fullPath}.items.title`)
-            }
-            if (property.items.description !== undefined) {
-              keys.push(`${fullPath}.items.description`)
-            }
-            if (property.items.properties) {
-              traverse(property.items, `${fullPath}.items`)
-            }
-          }
-
-          // Handle oneOf, anyOf, allOf schemas
-          ;["oneOf", "anyOf", "allOf"].forEach((schemaType) => {
-            if (property[schemaType as keyof SchemaProperty] && Array.isArray(property[schemaType as keyof SchemaProperty])) {
-              (property[schemaType as keyof SchemaProperty] as SchemaProperty[]).forEach((subSchema: any, index: number) => {
-                if (subSchema.title !== undefined) {
-                  keys.push(`${fullPath}.${schemaType}.${index}.title`)
-                }
-                if (subSchema.description !== undefined) {
-                  keys.push(`${fullPath}.${schemaType}.${index}.description`)
-                }
-              })
-            }
-          })
-        })
-      }
-
-      // Handle root-level title and description
-      if (path === "" && obj.title !== undefined) {
-        keys.push("title")
-      }
-      if (path === "" && obj.description !== undefined) {
-        keys.push("description")
-      }
+    // Add title and description at current path
+    if (obj.title !== undefined) {
+      keys.push(`${currentPath}${currentPath ? '.' : ''}title`)
+    }
+    if (obj.description !== undefined) {
+      keys.push(`${currentPath}${currentPath ? '.' : ''}description`)
     }
 
-    traverse(schema)
-    return keys
+    // Recurse into properties
+    if (obj.properties) {
+      Object.entries(obj.properties).forEach(([key, prop]: [string, any]) => {
+        traverse(prop, `${currentPath}${currentPath ? '.' : ''}properties.${key}`)
+      })
+    }
+
+    // Recurse into items of arrays
+    if (obj.type === "array" && obj.items) {
+      traverse(obj.items, `${currentPath}${currentPath ? '.' : ''}items`)
+    }
+
+    // Handle oneOf, anyOf, allOf
+    ["oneOf", "anyOf", "allOf"].forEach((schemaType) => {
+      if (Array.isArray(obj[schemaType])) {
+        obj[schemaType].forEach((sub: any, index: number) => {
+          traverse(sub, `${currentPath}${currentPath ? '.' : ''}${schemaType}.${index}`)
+        })
+      }
+    })
   }
+
+  traverse(schema)
+  return keys
+}
+
 
   const mergeTranslations = (newData: TranslationData) => {
     const merged = { ...translations }
@@ -366,7 +343,9 @@ function App() {
 
   const getKeyCompletionStatus = (key: string) => {
     const keyTranslations = translations[key]
-    const completed = languages.filter((lang) => keyTranslations[lang] && keyTranslations[lang].trim() !== "")
+    const completed = languages.filter(
+      (lang) => (keyTranslations?.[lang] ?? "").toString().trim() !== ""
+    )
     return {
       completed: completed.length,
       total: languages.length,

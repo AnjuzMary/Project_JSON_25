@@ -6,6 +6,42 @@ interface FileUploaderProps {
   onFileUpload: (data: any, type: "translation" | "schema") => void
 }
 
+function autoConvertToTranslationFormat(obj: any, lang = "en"): Record<string, Record<string, string>> {
+  const flatten = (o: any, prefix = ""): Record<string, string> => {
+    let result: Record<string, string> = {}
+
+    for (const key in o) {
+      const value = o[key]
+      const newKey = prefix ? `${prefix}.${key}` : key
+
+      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        Object.assign(result, flatten(value, newKey))
+      } else {
+        result[newKey] = String(value)
+      }
+    }
+
+    return result
+  }
+
+  const flat = flatten(obj)
+  const wrapped: Record<string, Record<string, string>> = {}
+
+  for (const [key, value] of Object.entries(flat)) {
+    wrapped[key] = { [lang]: value }
+  }
+
+  return wrapped
+}
+
+function looksLikeTranslationFile(data: any): boolean {
+  return typeof data === "object" &&
+    Object.values(data).every(
+      (val) => typeof val === "string" || (typeof val === "object" && val !== null && !Array.isArray(val))
+    )
+}
+
+
 export function FileUploader({ onFileUpload }: FileUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -17,16 +53,22 @@ export function FileUploader({ onFileUpload }: FileUploaderProps) {
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string
-        const data = JSON.parse(content)
+        let data = JSON.parse(content)
 
-        // Determine file type based on structure
-        const isSchema = data.properties || data.$schema || data.type === "object"
-        const type = isSchema ? "schema" : "translation"
+        if (data.properties || data.$schema || data.type === "object") {
+          // It's a JSON schema file
+          onFileUpload(data, "schema")
+        } else if (looksLikeTranslationFile(data)) {
+          // It's a raw translation file; convert to correct format
+          const converted = autoConvertToTranslationFormat(data, "en")
+          onFileUpload(converted, "translation")
+        } else {
+          alert("Unrecognized JSON structure. Please upload a valid translation or schema file.")
+        }
 
-        onFileUpload(data, type)
       } catch (error) {
-        alert("Error parsing JSON file. Please check the file format.")
-      }
+                alert("Error parsing JSON file. Please check the file format.")
+        }
     }
 
     reader.readAsText(file)
