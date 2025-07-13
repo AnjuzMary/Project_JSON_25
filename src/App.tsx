@@ -178,23 +178,27 @@ function App() {
         mergeTranslations(data)
       }
     } else if (type === "schema") {
-      const keys = extractKeysFromSchema(data)
-      const newTranslations = { ...translations }
+        const keys = extractKeysFromSchema(data)
+        const newTranslations = { ...translations }
 
-      keys.forEach((key) => {
-        if (!newTranslations[key]) {
-          newTranslations[key] = {}
-          languages.forEach((lang) => {
-            newTranslations[key][lang] = ""
-          })
-        }
-      })
+        keys.forEach((key) => {
+          if (!newTranslations[key]) {
+            newTranslations[key] = {}
 
-      setTranslations(newTranslations)
-    }
+            // Try to pull fallback value from schema
+            const fallback = getSchemaValueByPath(data, key)
+
+            languages.forEach((lang) => {
+              newTranslations[key][lang] = fallback || ""
+            })
+          }
+        })
+
+        setTranslations(newTranslations)
+      }
   }
 
- const extractKeysFromSchema = (schema: JsonSchema): string[] => {
+  const extractKeysFromSchema = (schema: JsonSchema): string[] => {
   const keys: string[] = []
 
   const traverse = (obj: any, path = "") => {
@@ -234,6 +238,29 @@ function App() {
   return keys
 }
 
+function getSchemaValueByPath(schema: any, path: string): string | undefined {
+  const parts = path.split(".");
+  let current = schema;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!current) return undefined;
+
+    if (["properties", "items", "oneOf", "anyOf", "allOf"].includes(part)) {
+      const next = parts[i + 1];
+      if (["oneOf", "anyOf", "allOf"].includes(part)) {
+        current = current[part]?.[parseInt(next)];
+        i++; // Skip index
+      } else {
+        current = current[part]?.[next];
+        i++; // Skip key
+      }
+    }
+  }
+
+  const lastPart = parts[parts.length - 1];
+  return current?.[lastPart];
+}
 
   const mergeTranslations = (newData: TranslationData) => {
     const merged = { ...translations }
