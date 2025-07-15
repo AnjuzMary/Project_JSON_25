@@ -498,6 +498,7 @@ function getSchemaValueByPath(schema: any, path: string): string | undefined {
                             "&:hover": { bgcolor: "action.hover" },
                             borderRadius: 1,
                             mb: 0.5,
+                            borderLeft: status.completed === 0 ? "4px solid red" : "4px solid transparent",
                           }}
                           onClick={() => setSelectedKey(key)}
                         >
