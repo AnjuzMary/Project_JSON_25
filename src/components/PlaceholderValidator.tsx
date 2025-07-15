@@ -39,7 +39,7 @@ export function PlaceholderValidator({ translations, placeholderIssues }: Placeh
               <Typography variant="subtitle2" gutterBottom>
                 Current translations:
               </Typography>
-              {Object.entries(translations[key]).map(([lang, text]) => (
+              {Object.entries(translations[key] || {}).map(([lang, text]) => (
                 <Box key={lang} sx={{ mb: 1 }}>
                   <Typography variant="caption" color="text.secondary">
                     {lang.toUpperCase()}:

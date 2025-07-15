@@ -74,6 +74,7 @@ function App() {
   const [conflicts, setConflicts] = useState<any>(null)
   const [placeholderIssues, setPlaceholderIssues] = useState<any>({})
   const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+  const [resetUploadList, setResetUploadList] = useState(false);
 
 
   // Load data from localStorage on mount
@@ -360,13 +361,18 @@ function getSchemaValueByPath(schema: any, path: string): string | undefined {
 
   const clearStorage = () => {
     if (window.confirm("Are you sure you want to clear all translation data?")) {
-      localStorage.removeItem("i18n-translations")
-      localStorage.removeItem("i18n-languages")
-      setTranslations({})
-      setLanguages(["en"])
-      setSelectedKey("")
+      localStorage.removeItem("i18n-translations");
+      localStorage.removeItem("i18n-languages");
+      localStorage.removeItem("i18n-uploaded-files"); // ✅ clear uploaded file names
+      setTranslations({});
+      setLanguages(["en"]);
+      setSelectedKey("");
+      setPlaceholderIssues({});
+      setResetUploadList(true); // ✅ tell FileUploader to reset
+      setTimeout(() => setResetUploadList(false), 100); // reset signal
     }
-  }
+  };
+
 
   const updateTranslation = (key: string, language: string, value: string) => {
     const newTranslations = { ...translations }
@@ -435,12 +441,12 @@ function getSchemaValueByPath(schema: any, path: string): string | undefined {
                   <Typography variant="h6" gutterBottom>
                     File Upload
                   </Typography>
-                  <FileUploader onFileUpload={handleFileUpload} />
+                  <FileUploader onFileUpload={handleFileUpload} resetSignal={resetUploadList} />
                 </Paper>
               </Grid>
 
               {/* Languages Management */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={5}>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -465,7 +471,7 @@ function getSchemaValueByPath(schema: any, path: string): string | undefined {
               </Grid>
 
               {/* Keys Management */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={7}>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>

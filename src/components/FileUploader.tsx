@@ -1,9 +1,12 @@
-import React, { useRef } from "react"
-import { Box, Button, Typography, Alert } from "@mui/material"
+import React, { useRef, useState, useEffect } from "react"
+import { Box, Button, Typography, Alert, Tooltip, IconButton } from "@mui/material"
 import { Upload } from "@mui/icons-material"
+import { VisibilityOutlined, VisibilityOffOutlined } from "@mui/icons-material";
+
 
 interface FileUploaderProps {
-  onFileUpload: (data: any, type: "translation" | "schema") => void
+  onFileUpload: (data: any, type: "translation" | "schema") => void;
+  resetSignal?: boolean; // ✅ new prop
 }
 
 function autoConvertToTranslationFormat(obj: any, lang = "en"): Record<string, Record<string, string>> {
@@ -50,8 +53,19 @@ function looksLikeStructuredTranslationFile(data: any): boolean {
     )
 }
 
-export function FileUploader({ onFileUpload }: FileUploaderProps) {
+export function FileUploader({ onFileUpload, resetSignal }: FileUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadedFiles, setUploadedFiles] = useState<string[]>(() => {
+    const saved = localStorage.getItem("i18n-uploaded-files");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showTips, setShowTips] = useState(true);
+
+  useEffect(() => {
+    if (resetSignal) {
+      setUploadedFiles([]);
+    }
+  }, [resetSignal]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -87,6 +101,9 @@ export function FileUploader({ onFileUpload }: FileUploaderProps) {
     }
 
     reader.readAsText(file)
+    setUploadedFiles((prev) => [...prev, file.name]);
+    localStorage.setItem("i18n-uploaded-files", JSON.stringify([...uploadedFiles, file.name]));
+
 
     // Reset input
     if (fileInputRef.current) {
@@ -102,25 +119,51 @@ export function FileUploader({ onFileUpload }: FileUploaderProps) {
         <Button variant="outlined" startIcon={<Upload />} onClick={() => fileInputRef.current?.click()}>
           Upload JSON File
         </Button>
+        <Tooltip title={showTips ? "Hide tips" : "Show tips"}>
+          <IconButton onClick={() => setShowTips((prev) => !prev)} aria-label="Toggle tips">
+            {showTips ? (
+              <VisibilityOutlined color="primary" />
+            ) : (
+              <VisibilityOffOutlined color="disabled" />
+            )}
+          </IconButton>
+        </Tooltip>
       </Box>
 
-      <Alert severity="info" sx={{ mt: 2 }}>
-        <Typography variant="body2">
-          <strong>Supported file types:</strong>
-        </Typography>
-        <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
-          <li>
-            <strong>Translation files:</strong> JSON files with translation key-value pairs
-          </li>
-          <li>
-            <strong>JSON Schema files:</strong> Schema files to initialize translation keys
-          </li>
-        </ul>
-        <Typography variant="body2">
-          Files will be automatically detected and processed. Existing data will be merged, with conflict resolution
-          when needed.
-        </Typography>
-      </Alert>
+      {uploadedFiles.length > 0 && (
+        <Box sx={{ mt: 1 }}>
+          <Typography variant="caption" color="text.secondary">
+            Uploaded files:
+          </Typography>
+          <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+            {uploadedFiles.map((file, idx) => (
+              <li key={idx}>
+                <Typography variant="body2">{file}</Typography>
+              </li>
+            ))}
+          </ul>
+        </Box>
+      )}
+
+      {showTips && (
+        <Alert severity="info" sx={{ mt: 2 }}>
+          <Typography variant="body2">
+            <strong>Supported file types:</strong>
+          </Typography>
+          <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
+            <li>
+              <strong>Translation files:</strong> JSON files with translation key-value pairs
+            </li>
+            <li>
+              <strong>JSON Schema files:</strong> Schema files to initialize translation keys
+            </li>
+          </ul>
+          <Typography variant="body2">
+            Files will be automatically detected and processed. Existing data will be merged, with conflict resolution
+            when needed.
+          </Typography>
+        </Alert>
+      )}
     </Box>
   )
 }
