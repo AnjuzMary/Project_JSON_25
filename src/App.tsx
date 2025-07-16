@@ -26,6 +26,7 @@ import { TranslationEditor } from "./components/TranslationEditor"
 import { FileUploader } from "./components/FileUploader"
 import { ConflictResolver } from "./components/ConflictResolver"
 import { PlaceholderValidator } from "./components/PlaceholderValidator"
+import { StorageIndicator } from "./components/StorageIndicator";
 import './App.css'
 
 const theme = createTheme({
@@ -72,37 +73,47 @@ function App() {
   const [newLanguage, setNewLanguage] = useState("")
   const [conflicts, setConflicts] = useState<any>(null)
   const [placeholderIssues, setPlaceholderIssues] = useState<any>({})
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+  const [resetUploadList, setResetUploadList] = useState(false);
+
 
   // Load data from localStorage on mount
   useEffect(() => {
-    const savedData = localStorage.getItem("i18n-translations")
-    const savedLanguages = localStorage.getItem("i18n-languages")
+    const savedData = localStorage.getItem("i18n-translations");
+    const savedLanguages = localStorage.getItem("i18n-languages");
 
     if (savedData) {
       try {
-        setTranslations(JSON.parse(savedData))
+        setTranslations(JSON.parse(savedData));
       } catch (e) {
-        console.error("Failed to load saved translations:", e)
+        console.error("Failed to load saved translations:", e);
       }
     }
 
     if (savedLanguages) {
       try {
-        setLanguages(JSON.parse(savedLanguages))
+        setLanguages(JSON.parse(savedLanguages));
       } catch (e) {
-        console.error("Failed to load saved languages:", e)
+        console.error("Failed to load saved languages:", e);
       }
     }
-  }, [])
+
+    setHasLoadedFromStorage(true); // ✅ mark storage as loaded
+  }, []);
 
   // Save to localStorage whenever data changes
   useEffect(() => {
-    localStorage.setItem("i18n-translations", JSON.stringify(translations))
-  }, [translations])
+    if (hasLoadedFromStorage) {
+      localStorage.setItem("i18n-translations", JSON.stringify(translations));
+    }
+  }, [translations, hasLoadedFromStorage]);
 
   useEffect(() => {
-    localStorage.setItem("i18n-languages", JSON.stringify(languages))
-  }, [languages])
+    if (hasLoadedFromStorage) {
+      localStorage.setItem("i18n-languages", JSON.stringify(languages));
+    }
+  }, [languages, hasLoadedFromStorage]);
+
 
   // Validate placeholders whenever translations change
   useEffect(() => {
@@ -168,85 +179,89 @@ function App() {
         mergeTranslations(data)
       }
     } else if (type === "schema") {
-      const keys = extractKeysFromSchema(data)
-      const newTranslations = { ...translations }
+        const keys = extractKeysFromSchema(data)
+        const newTranslations = { ...translations }
 
-      keys.forEach((key) => {
-        if (!newTranslations[key]) {
-          newTranslations[key] = {}
-          languages.forEach((lang) => {
-            newTranslations[key][lang] = ""
-          })
-        }
-      })
+        keys.forEach((key) => {
+          if (!newTranslations[key]) {
+            newTranslations[key] = {}
 
-      setTranslations(newTranslations)
-    }
+            // Try to pull fallback value from schema
+            const fallback = getSchemaValueByPath(data, key)
+
+            languages.forEach((lang) => {
+              newTranslations[key][lang] = fallback || ""
+            })
+          }
+        })
+
+        setTranslations(newTranslations)
+      }
   }
 
   const extractKeysFromSchema = (schema: JsonSchema): string[] => {
-    const keys: string[] = []
+  const keys: string[] = []
 
-    const traverse = (obj: any, path = "") => {
-      if (obj.properties) {
-        Object.keys(obj.properties).forEach((key) => {
-          const fullPath = path ? `${path}.properties.${key}` : `properties.${key}`
-          const property = obj.properties[key]
+  const traverse = (obj: any, path = "") => {
+    const currentPath = path
 
-          // Add title and description paths for JSONForms i18n
-          if (property.title !== undefined) {
-            keys.push(`${fullPath}.title`)
-          }
-          if (property.description !== undefined) {
-            keys.push(`${fullPath}.description`)
-          }
-
-          // Handle nested objects
-          if (property.properties) {
-            traverse(property, fullPath)
-          }
-
-          // Handle arrays with items
-          if (property.type === "array" && property.items) {
-            if (property.items.title !== undefined) {
-              keys.push(`${fullPath}.items.title`)
-            }
-            if (property.items.description !== undefined) {
-              keys.push(`${fullPath}.items.description`)
-            }
-            if (property.items.properties) {
-              traverse(property.items, `${fullPath}.items`)
-            }
-          }
-
-          // Handle oneOf, anyOf, allOf schemas
-          ;["oneOf", "anyOf", "allOf"].forEach((schemaType) => {
-            if (property[schemaType as keyof SchemaProperty] && Array.isArray(property[schemaType as keyof SchemaProperty])) {
-              (property[schemaType as keyof SchemaProperty] as SchemaProperty[]).forEach((subSchema: any, index: number) => {
-                if (subSchema.title !== undefined) {
-                  keys.push(`${fullPath}.${schemaType}.${index}.title`)
-                }
-                if (subSchema.description !== undefined) {
-                  keys.push(`${fullPath}.${schemaType}.${index}.description`)
-                }
-              })
-            }
-          })
-        })
-      }
-
-      // Handle root-level title and description
-      if (path === "" && obj.title !== undefined) {
-        keys.push("title")
-      }
-      if (path === "" && obj.description !== undefined) {
-        keys.push("description")
-      }
+    // Add title and description at current path
+    if (obj.title !== undefined) {
+      keys.push(`${currentPath}${currentPath ? '.' : ''}title`)
+    }
+    if (obj.description !== undefined) {
+      keys.push(`${currentPath}${currentPath ? '.' : ''}description`)
     }
 
-    traverse(schema)
-    return keys
+    // Recurse into properties
+    if (obj.properties) {
+      Object.entries(obj.properties).forEach(([key, prop]: [string, any]) => {
+        traverse(prop, `${currentPath}${currentPath ? '.' : ''}properties.${key}`)
+      })
+    }
+
+    // Recurse into items of arrays
+    if (obj.type === "array" && obj.items) {
+      traverse(obj.items, `${currentPath}${currentPath ? '.' : ''}items`)
+    }
+
+    // Handle oneOf, anyOf, allOf
+    ["oneOf", "anyOf", "allOf"].forEach((schemaType) => {
+      if (Array.isArray(obj[schemaType])) {
+        obj[schemaType].forEach((sub: any, index: number) => {
+          traverse(sub, `${currentPath}${currentPath ? '.' : ''}${schemaType}.${index}`)
+        })
+      }
+    })
   }
+
+  traverse(schema)
+  return keys
+}
+
+function getSchemaValueByPath(schema: any, path: string): string | undefined {
+  const parts = path.split(".");
+  let current = schema;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!current) return undefined;
+
+    if (["properties", "items", "oneOf", "anyOf", "allOf"].includes(part)) {
+      const next = parts[i + 1];
+      if (["oneOf", "anyOf", "allOf"].includes(part)) {
+        current = current[part]?.[parseInt(next)];
+        i++; // Skip index
+      } else {
+        current = current[part]?.[next];
+        i++; // Skip key
+      }
+    }
+  }
+
+  const lastPart = parts[parts.length - 1];
+  return current?.[lastPart];
+}
 
   const mergeTranslations = (newData: TranslationData) => {
     const merged = { ...translations }
@@ -344,6 +359,21 @@ function App() {
     setTranslations(newTranslations)
   }
 
+  const clearStorage = () => {
+    if (window.confirm("Are you sure you want to clear all translation data?")) {
+      localStorage.removeItem("i18n-translations");
+      localStorage.removeItem("i18n-languages");
+      localStorage.removeItem("i18n-uploaded-files"); // ✅ clear uploaded file names
+      setTranslations({});
+      setLanguages(["en"]);
+      setSelectedKey("");
+      setPlaceholderIssues({});
+      setResetUploadList(true); // ✅ tell FileUploader to reset
+      setTimeout(() => setResetUploadList(false), 100); // reset signal
+    }
+  };
+
+
   const updateTranslation = (key: string, language: string, value: string) => {
     const newTranslations = { ...translations }
     if (!newTranslations[key]) {
@@ -366,7 +396,9 @@ function App() {
 
   const getKeyCompletionStatus = (key: string) => {
     const keyTranslations = translations[key]
-    const completed = languages.filter((lang) => keyTranslations[lang] && keyTranslations[lang].trim() !== "")
+    const completed = languages.filter(
+      (lang) => (keyTranslations?.[lang] ?? "").toString().trim() !== ""
+    )
     return {
       completed: completed.length,
       total: languages.length,
@@ -385,16 +417,21 @@ function App() {
               <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                 JSON i18n Translator
               </Typography>
+
+              <StorageIndicator onClearStorage={clearStorage} />
+
               <Button
                 color="inherit"
                 startIcon={<Download />}
                 onClick={downloadTranslations}
                 disabled={Object.keys(translations).length === 0}
+                sx={{ ml: 2 }}
               >
                 Download
               </Button>
             </Toolbar>
           </AppBar>
+
 
           <Container maxWidth="xl">
             <Grid container spacing={3}>
@@ -404,12 +441,12 @@ function App() {
                   <Typography variant="h6" gutterBottom>
                     File Upload
                   </Typography>
-                  <FileUploader onFileUpload={handleFileUpload} />
+                  <FileUploader onFileUpload={handleFileUpload} resetSignal={resetUploadList} />
                 </Paper>
               </Grid>
 
               {/* Languages Management */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={5}>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -434,7 +471,7 @@ function App() {
               </Grid>
 
               {/* Keys Management */}
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={7}>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                     <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -461,6 +498,7 @@ function App() {
                             "&:hover": { bgcolor: "action.hover" },
                             borderRadius: 1,
                             mb: 0.5,
+                            borderLeft: status.completed === 0 ? "4px solid red" : "4px solid transparent",
                           }}
                           onClick={() => setSelectedKey(key)}
                         >
