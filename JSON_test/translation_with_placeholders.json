@@ -1,0 +1,12 @@
+{
+  "greeting.message": {
+    "en": "Hello ${name}, welcome to ${platform}!",
+    "de": "Hallo ${name}, willkommen bei ${platform}!",
+    "fr": "Bonjour ${name}!"
+  },
+  "order.confirmation": {
+    "en": "Order #${orderId} has been confirmed.",
+    "de": "Bestellung Nr. ${orderId} wurde best\u00e4tigt.",
+    "fr": "Votre commande a \u00e9t\u00e9 confirm\u00e9e."
+  }
+}

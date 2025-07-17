@@ -1,0 +1,30 @@
+{
+  "title": "User Form",
+  "description": "Form to collect user information",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Full Name",
+      "description": "Enter your full name"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email Address"
+    },
+    "address": {
+      "type": "object",
+      "title": "Home Address",
+      "properties": {
+        "street": {
+          "type": "string",
+          "title": "Street"
+        },
+        "city": {
+          "type": "string",
+          "title": "City"
+        }
+      }
+    }
+  }
+}

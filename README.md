@@ -1,56 +1,111 @@
-<<<<<<< HEAD
-# Project_JSON_25
-=======
-<<<<<<< HEAD
-# Project_JSON_25
-=======
-# Getting Started with Create React App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# 🌐 JSON i18n Translator
 
-## Available Scripts
+A modern web-based tool to manage multilingual translations from JSON files. It supports importing schemas or translation files, editing translations across multiple languages, resolving conflicts, validating placeholders, and downloading updated files.
 
-In the project directory, you can run:
+## ✨ Features
 
-### `npm start`
+* Upload JSON translation or schema files
+* Add/edit/delete translation keys
+* Add/remove supported languages
+* Validate placeholder consistency (`${...}` syntax)
+* Merge or resolve conflicting keys during import
+* Store state using `localStorage`
+* Download compiled translation file
+* Interactive translation editing interface
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+---
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## 🧩 Project Structure
 
-### `npm test`
+```
+src/
+├── App.tsx                   # Main App with state logic
+├── components/
+│   ├── ConflictResolver.tsx  # Conflict dialog for merging/keeping keys
+│   ├── FileUploader.tsx      # Upload component for translation/schema files
+│   ├── PlaceholderValidator.tsx # Validates placeholder consistency
+│   ├── StorageIndicator.tsx  # Show storage info & clear option
+│   └── TranslationEditor.tsx # Editor for multilingual values
+├── App.css                   # Minimal styling
+├── App.test.tsx             # Basic unit test
+└── index.tsx                # Entry point
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 🛠 Installation & Setup
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 1. Clone the repository
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+git clone https://github.com/your-username/json-i18n-translator.git
+cd json-i18n-translator
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 2. Install dependencies
 
-### `npm run eject`
+Make sure you have [Node.js](https://nodejs.org/) (v16 or above) and `npm` installed.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```bash
+npm install
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+This installs all required dependencies like:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+* `react`
+* `@mui/material`
+* `@mui/icons-material`
+* `typescript`
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+---
 
-## Learn More
+## 🚀 Running the App
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+npm start
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+* Opens in your browser at `http://localhost:3000`
+* Hot-reloads on file changes
 
+---
 
->>>>>>> master
->>>>>>> 00c5345 (working code based on mui v5)
+## 🧪 Running Tests
+
+To run the default React test suite:
+
+```bash
+npm test
+```
+
+---
+
+## 📦 Build for Production
+
+```bash
+npm run build
+```
+
+---
+
+## 📁 Sample Files for Testing
+
+You can use the following types of files to test various functionalities:
+
+* ✅ JSON Translation files with multiple languages
+* ✅ JSON Schema files with nested structures
+* ✅ Conflict test files (to trigger merge/replace dialog)
+* ✅ Files with placeholder inconsistencies (`${...}` mismatches)
+
+> See `test_i18n_json_files/` and `conflict_test_files/` directories (if included in repo).
+
+---
+
+## 📄 Notes
+
+* All translations and language info are stored in browser's localStorage.
+* Placeholder syntax must use: `${name}`, `${count}`, etc.
+* Placeholder validator checks consistency across languages.
+
+---

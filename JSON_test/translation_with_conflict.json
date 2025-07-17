@@ -1,0 +1,14 @@
+{
+  "app.title": {
+    "en": "Register Student",
+    "fr": "Inscription \u00c9tudiant"
+  },
+  "form.name.label": {
+    "en": "Name",
+    "fr": "Nom"
+  },
+  "form.email.label": {
+    "en": "Email",
+    "fr": "Email"
+  }
+}
