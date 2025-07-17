@@ -1,0 +1,14 @@
+{
+  "app.title": {
+    "en": "Student Registration",
+    "de": "Studentenanmeldung"
+  },
+  "form.name.label": {
+    "en": "Full Name",
+    "de": "Vollst\u00e4ndiger Name"
+  },
+  "form.age.label": {
+    "en": "Age",
+    "de": "Alter"
+  }
+}
